@@ -16,8 +16,11 @@ def get_tradingview_stocks():
 
 # Fetch stock data
 def get_stock_data(ticker, start, end):
-    stock = yf.download(ticker, start=start, end=end)
-    stock['Returns'] = stock['Adj Close'].pct_change()
+    stock = yf.download(ticker, start=start, end=end, auto_adjust=True)  # auto_adjust=True to adjust stock data
+    if 'Adj Close' not in stock.columns:
+        print("Error: 'Adj Close' not found in data columns")
+        print(f"Available columns: {stock.columns}")
+    stock['Returns'] = stock['Close'].pct_change()  # Use 'Close' instead of 'Adj Close' for the returns
     return stock.dropna()
 
 # Fundamental Analysis (P/E Ratio, Earnings Growth)
@@ -70,15 +73,15 @@ def scrape_news(ticker):
 
 # Feature engineering
 def create_features(data):
-    data['SMA_50'] = data['Adj Close'].rolling(window=50).mean()
-    data['SMA_200'] = data['Adj Close'].rolling(window=200).mean()
+    data['SMA_50'] = data['Close'].rolling(window=50).mean()
+    data['SMA_200'] = data['Close'].rolling(window=200).mean()
     data['Volatility'] = data['Returns'].rolling(window=30).std()
     data.dropna(inplace=True)
     return data
 
 # Train model to predict stock prices
 def train_model(data):
-    data['Target'] = data['Adj Close'].shift(-30)  # Predicting 30 days ahead
+    data['Target'] = data['Close'].shift(-30)  # Predicting 30 days ahead
     data.dropna(inplace=True)
     
     features = ['SMA_50', 'SMA_200', 'Volatility', 'Volume']
@@ -113,7 +116,7 @@ def analyze_stock(ticker, investment_amount, risk_level):
     predicted_price = predict_stock(model, latest_data)[0]
 
     # Buy/Sell Logic with Timestamps
-    current_price = processed_data['Adj Close'].iloc[-1]
+    current_price = processed_data['Close'].iloc[-1]
     potential_gain = (predicted_price - current_price) / current_price
     pe_ratio = fundamentals["PE Ratio"]
 
