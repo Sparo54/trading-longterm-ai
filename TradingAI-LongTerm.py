@@ -1,3 +1,4 @@
+import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
@@ -5,7 +6,6 @@ from bs4 import BeautifulSoup
 from newspaper import Article
 from sklearn.ensemble import RandomForestRegressor
 from datetime import datetime, timedelta
-from alpha_vantage.timeseries import TimeSeries
 
 # Import TradingView stock directory
 def get_tradingview_stocks():
@@ -13,34 +13,41 @@ def get_tradingview_stocks():
         "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "AMD", "BA"
     ]  # Example stock list
 
-# Fetch stock data using Alpha Vantage API
+# Fetch stock data
 def get_stock_data(ticker, start, end):
-    # Your Alpha Vantage API key (replace with your own key)
-    api_key = 'YOUR_ALPHA_VANTAGE_API_KEY'
-    ts = TimeSeries(key=api_key, output_format='pandas')
-    
-    # Get historical data
-    stock_data, meta_data = ts.get_daily(symbol=ticker, outputsize='full')
+    try:
+        stock = yf.Ticker(ticker)
+        stock_data = stock.history(start=start, end=end)
 
-    # Filter data to the required date range
-    stock_data = stock_data.loc[start:end]
-    
-    # Calculate returns
-    stock_data['Returns'] = stock_data['4. close'].pct_change()  # '4. close' is the close price from Alpha Vantage
-    return stock_data.dropna()
+        # Check if 'Close' column exists, otherwise raise an error
+        if 'Close' not in stock_data.columns:
+            raise ValueError(f"'Close' column missing for {ticker}")
+
+        # Calculate returns using 'Close' column
+        stock_data['Returns'] = stock_data['Close'].pct_change()
+
+        # Drop any rows with NaN values (e.g., first row after pct_change)
+        return stock_data.dropna()
+    except Exception as e:
+        print(f"Error fetching data for {ticker}: {e}")
+        return pd.DataFrame()  # Return an empty dataframe in case of error
 
 # Fundamental Analysis (P/E Ratio, Earnings Growth)
 def get_fundamentals(ticker):
     url = f"https://finance.yahoo.com/quote/{ticker}/key-statistics"
-    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-    soup = BeautifulSoup(response.text, "html.parser")
-    
-    pe_ratio = None
-    pe_element = soup.find(text="Trailing P/E")
-    if pe_element:
-        pe_ratio = pe_element.find_next("td").text
-    
-    return {"PE Ratio": pe_ratio}
+    try:
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        pe_ratio = None
+        pe_element = soup.find(text="Trailing P/E")
+        if pe_element:
+            pe_ratio = pe_element.find_next("td").text
+        
+        return {"PE Ratio": pe_ratio}
+    except Exception as e:
+        print(f"Error fetching fundamentals for {ticker}: {e}")
+        return {"PE Ratio": "N/A"}
 
 # Scrape news from multiple sources for sentiment analysis
 def scrape_news(ticker):
@@ -71,7 +78,8 @@ def scrape_news(ticker):
 
             sentiment_score += (pos_count - neg_count)
             article_count += 1
-        except:
+        except Exception as e:
+            print(f"Error processing news from {url}: {e}")
             continue
 
     avg_sentiment = sentiment_score / max(article_count, 1)
@@ -79,29 +87,43 @@ def scrape_news(ticker):
 
 # Feature engineering
 def create_features(data):
-    data['SMA_50'] = data['4. close'].rolling(window=50).mean()
-    data['SMA_200'] = data['4. close'].rolling(window=200).mean()
-    data['Volatility'] = data['Returns'].rolling(window=30).std()
-    data.dropna(inplace=True)
-    return data
+    try:
+        data['SMA_50'] = data['Close'].rolling(window=50).mean()
+        data['SMA_200'] = data['Close'].rolling(window=200).mean()
+        data['Volatility'] = data['Returns'].rolling(window=30).std()
+        data.dropna(inplace=True)  # Drop rows with NaN values from rolling calculations
+        return data
+    except Exception as e:
+        print(f"Error in feature creation: {e}")
+        return pd.DataFrame()  # Return empty dataframe in case of error
 
 # Train model to predict stock prices
 def train_model(data):
-    data['Target'] = data['4. close'].shift(-30)  # Predicting 30 days ahead
-    data.dropna(inplace=True)
-    
-    features = ['SMA_50', 'SMA_200', 'Volatility', '5. volume']
-    X = data[features]
-    y = data['Target']
-    
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X, y)
-    
-    return model, data
+    try:
+        # Shift 'Close' to create a 30-day target
+        data['Target'] = data['Close'].shift(-30)  # Predicting 30 days ahead
+        data.dropna(inplace=True)  # Drop rows with NaN values
+
+        features = ['SMA_50', 'SMA_200', 'Volatility', 'Volume']
+        X = data[features]
+        y = data['Target']
+        
+        # Fit RandomForestRegressor model
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model.fit(X, y)
+        
+        return model, data
+    except Exception as e:
+        print(f"Error in model training: {e}")
+        return None, pd.DataFrame()
 
 # Make predictions
 def predict_stock(model, latest_data):
-    return model.predict([latest_data])
+    try:
+        return model.predict([latest_data])
+    except Exception as e:
+        print(f"Error in prediction: {e}")
+        return [0]  # Return a dummy value in case of error
 
 # AI Trading System for Stock Analysis
 def analyze_stock(ticker, investment_amount):
@@ -110,19 +132,30 @@ def analyze_stock(ticker, investment_amount):
 
     # Get stock data & fundamentals
     data = get_stock_data(ticker, start, end)
+    if data.empty:
+        print("No stock data available. Exiting.")
+        return
+
     fundamentals = get_fundamentals(ticker)
     sentiment_score = scrape_news(ticker)
 
     # Process data & train AI
     data = create_features(data)
+    if data.empty:
+        print("Error processing features. Exiting.")
+        return
+    
     model, processed_data = train_model(data)
+    if model is None:
+        print("Error training the model. Exiting.")
+        return
 
     # Predict next 30 days
-    latest_data = processed_data.iloc[-1][['SMA_50', 'SMA_200', 'Volatility', '5. volume']].values
+    latest_data = processed_data.iloc[-1][['SMA_50', 'SMA_200', 'Volatility', 'Volume']].values
     predicted_price = predict_stock(model, latest_data)[0]
 
     # Buy/Sell Logic with Timestamps
-    current_price = processed_data['4. close'].iloc[-1]
+    current_price = processed_data['Close'].iloc[-1]
     potential_gain = (predicted_price - current_price) / current_price
     pe_ratio = fundamentals["PE Ratio"]
 
