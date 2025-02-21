@@ -17,9 +17,6 @@ def get_tradingview_stocks():
 # Fetch stock data
 def get_stock_data(ticker, start, end):
     stock = yf.download(ticker, start=start, end=end, auto_adjust=True)  # auto_adjust=True to adjust stock data
-    if 'Adj Close' not in stock.columns:
-        print("Error: 'Adj Close' not found in data columns")
-        print(f"Available columns: {stock.columns}")
     stock['Returns'] = stock['Close'].pct_change()  # Use 'Close' instead of 'Adj Close' for the returns
     return stock.dropna()
 
