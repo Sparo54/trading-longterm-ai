@@ -7,24 +7,28 @@ from newspaper import Article
 from sklearn.ensemble import RandomForestRegressor
 from datetime import datetime, timedelta
 
-# Import TradingView stock directory
-def get_tradingview_stocks():
-    return [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "AMD", "BA"
-    ]  # Example stock list
-
-# Fetch stock data
+# Fetch stock data with dynamic column handling
 def get_stock_data(ticker, start, end):
     try:
         stock = yf.Ticker(ticker)
         stock_data = stock.history(start=start, end=end)
 
-        # Check if 'Close' column exists, otherwise raise an error
-        if 'Close' not in stock_data.columns:
-            raise ValueError(f"'Close' column missing for {ticker}")
+        # Dynamically check available columns and use the appropriate one for returns calculation
+        available_columns = stock_data.columns.tolist()
+        print(f"Available columns: {available_columns}")
 
-        # Calculate returns using 'Close' column
-        stock_data['Returns'] = stock_data['Close'].pct_change()
+        # Check for 'Adj Close' or 'Close', or fallback to another column if necessary
+        price_column = None
+        if 'Adj Close' in available_columns:
+            price_column = 'Adj Close'
+        elif 'Close' in available_columns:
+            price_column = 'Close'
+        else:
+            print("Neither 'Adj Close' nor 'Close' found. Unable to proceed.")
+            return pd.DataFrame()  # Return empty dataframe if no price column is found
+
+        # Calculate returns using the identified price column
+        stock_data['Returns'] = stock_data[price_column].pct_change()
 
         # Drop any rows with NaN values (e.g., first row after pct_change)
         return stock_data.dropna()
