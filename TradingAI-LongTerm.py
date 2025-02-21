@@ -15,9 +15,10 @@ def get_tradingview_stocks():
 
 # Fetch stock data
 def get_stock_data(ticker, start, end):
-    stock = yf.download(ticker, start=start, end=end, auto_adjust=True)  # auto_adjust=True to adjust stock data
-    stock['Returns'] = stock['Close'].pct_change()  # Use 'Close' instead of 'Adj Close' for the returns
-    return stock.dropna()
+    stock = yf.Ticker(ticker)
+    stock_data = stock.history(start=start, end=end)
+    stock_data['Returns'] = stock_data['Close'].pct_change()  # Use 'Close' for returns
+    return stock_data.dropna()
 
 # Fundamental Analysis (P/E Ratio, Earnings Growth)
 def get_fundamentals(ticker):
@@ -94,7 +95,7 @@ def predict_stock(model, latest_data):
     return model.predict([latest_data])
 
 # AI Trading System for Stock Analysis
-def analyze_stock(ticker, investment_amount, risk_level):
+def analyze_stock(ticker, investment_amount):
     start = (datetime.today() - timedelta(days=365 * 5)).strftime('%Y-%m-%d')
     end = datetime.today().strftime('%Y-%m-%d')
 
@@ -129,8 +130,7 @@ def analyze_stock(ticker, investment_amount, risk_level):
         recommendation = "HOLD - Market Uncertain"
 
     # Calculate recommended shares to buy
-    risk_multiplier = {"low": 0.2, "medium": 0.5, "high": 1.0}
-    shares_to_buy = int((investment_amount * risk_multiplier[risk_level]) / current_price)
+    shares_to_buy = int(investment_amount / current_price)
 
     # Display Results
     print(f"\n📌 AI Stock Analysis Report for {ticker}")
@@ -162,7 +162,6 @@ def analyze_stock(ticker, investment_amount, risk_level):
 stocks = get_tradingview_stocks()
 selected_stock = input("Enter the stock symbol you want to analyze: ").upper()
 investment_amount = float(input("Enter your investment amount (USD): "))
-risk_level = input("Enter your risk level (low, medium, high): ").lower()
 
 # Run AI analysis on selected stock
-analyze_stock(selected_stock, investment_amount, risk_level)
+analyze_stock(selected_stock, investment_amount)
