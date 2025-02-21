@@ -1,4 +1,3 @@
-import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
@@ -6,6 +5,7 @@ from bs4 import BeautifulSoup
 from newspaper import Article
 from sklearn.ensemble import RandomForestRegressor
 from datetime import datetime, timedelta
+from alpha_vantage.timeseries import TimeSeries
 
 # Import TradingView stock directory
 def get_tradingview_stocks():
@@ -13,11 +13,20 @@ def get_tradingview_stocks():
         "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "AMD", "BA"
     ]  # Example stock list
 
-# Fetch stock data
+# Fetch stock data using Alpha Vantage API
 def get_stock_data(ticker, start, end):
-    stock = yf.Ticker(ticker)
-    stock_data = stock.history(start=start, end=end)
-    stock_data['Returns'] = stock_data['Close'].pct_change()  # Use 'Close' for returns
+    # Your Alpha Vantage API key (replace with your own key)
+    api_key = 'YOUR_ALPHA_VANTAGE_API_KEY'
+    ts = TimeSeries(key=api_key, output_format='pandas')
+    
+    # Get historical data
+    stock_data, meta_data = ts.get_daily(symbol=ticker, outputsize='full')
+
+    # Filter data to the required date range
+    stock_data = stock_data.loc[start:end]
+    
+    # Calculate returns
+    stock_data['Returns'] = stock_data['4. close'].pct_change()  # '4. close' is the close price from Alpha Vantage
     return stock_data.dropna()
 
 # Fundamental Analysis (P/E Ratio, Earnings Growth)
@@ -70,18 +79,18 @@ def scrape_news(ticker):
 
 # Feature engineering
 def create_features(data):
-    data['SMA_50'] = data['Close'].rolling(window=50).mean()
-    data['SMA_200'] = data['Close'].rolling(window=200).mean()
+    data['SMA_50'] = data['4. close'].rolling(window=50).mean()
+    data['SMA_200'] = data['4. close'].rolling(window=200).mean()
     data['Volatility'] = data['Returns'].rolling(window=30).std()
     data.dropna(inplace=True)
     return data
 
 # Train model to predict stock prices
 def train_model(data):
-    data['Target'] = data['Close'].shift(-30)  # Predicting 30 days ahead
+    data['Target'] = data['4. close'].shift(-30)  # Predicting 30 days ahead
     data.dropna(inplace=True)
     
-    features = ['SMA_50', 'SMA_200', 'Volatility', 'Volume']
+    features = ['SMA_50', 'SMA_200', 'Volatility', '5. volume']
     X = data[features]
     y = data['Target']
     
@@ -109,11 +118,11 @@ def analyze_stock(ticker, investment_amount):
     model, processed_data = train_model(data)
 
     # Predict next 30 days
-    latest_data = processed_data.iloc[-1][['SMA_50', 'SMA_200', 'Volatility', 'Volume']].values
+    latest_data = processed_data.iloc[-1][['SMA_50', 'SMA_200', 'Volatility', '5. volume']].values
     predicted_price = predict_stock(model, latest_data)[0]
 
     # Buy/Sell Logic with Timestamps
-    current_price = processed_data['Close'].iloc[-1]
+    current_price = processed_data['4. close'].iloc[-1]
     potential_gain = (predicted_price - current_price) / current_price
     pe_ratio = fundamentals["PE Ratio"]
 
