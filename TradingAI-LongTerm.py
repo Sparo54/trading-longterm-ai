@@ -17,7 +17,16 @@ def get_tradingview_stocks():
 # Fetch stock data
 def get_stock_data(ticker, start, end):
     stock = yf.download(ticker, start=start, end=end)
-    stock['Returns'] = stock['Adj Close'].pct_change()
+    # Check available columns and fall back to 'Close' if 'Adj Close' is missing
+    if 'Adj Close' in stock.columns:
+        stock['Returns'] = stock['Adj Close'].pct_change()
+        price_column = 'Adj Close'
+    elif 'Close' in stock.columns:
+        stock['Returns'] = stock['Close'].pct_change()
+        price_column = 'Close'
+    else:
+        raise ValueError(f"Neither 'Adj Close' nor 'Close' found in the data for {ticker}")
+    
     return stock.dropna()
 
 # Fundamental Analysis (P/E Ratio, Earnings Growth)
@@ -70,15 +79,15 @@ def scrape_news(ticker):
 
 # Feature engineering
 def create_features(data):
-    data['SMA_50'] = data['Adj Close'].rolling(window=50).mean()
-    data['SMA_200'] = data['Adj Close'].rolling(window=200).mean()
+    data['SMA_50'] = data['Close'].rolling(window=50).mean()  # Use 'Close' directly
+    data['SMA_200'] = data['Close'].rolling(window=200).mean()  # Use 'Close' directly
     data['Volatility'] = data['Returns'].rolling(window=30).std()
     data.dropna(inplace=True)
     return data
 
 # Train model to predict stock prices
 def train_model(data):
-    data['Target'] = data['Adj Close'].shift(-30)  # Predicting 30 days ahead
+    data['Target'] = data['Close'].shift(-30)  # Predicting 30 days ahead
     data.dropna(inplace=True)
     
     features = ['SMA_50', 'SMA_200', 'Volatility', 'Volume']
@@ -95,7 +104,9 @@ def predict_stock(model, latest_data):
     return model.predict([latest_data])
 
 # AI Trading System for Stock Analysis
-def analyze_stock(ticker, investment_amount, risk_level):
+def analyze_stock(t
+
+icker, investment_amount, risk_level):
     start = (datetime.today() - timedelta(days=365 * 5)).strftime('%Y-%m-%d')
     end = datetime.today().strftime('%Y-%m-%d')
 
@@ -113,7 +124,7 @@ def analyze_stock(ticker, investment_amount, risk_level):
     predicted_price = predict_stock(model, latest_data)[0]
 
     # Buy/Sell Logic with Timestamps
-    current_price = processed_data['Adj Close'].iloc[-1]
+    current_price = processed_data['Close'].iloc[-1]
     potential_gain = (predicted_price - current_price) / current_price
     pe_ratio = fundamentals["PE Ratio"]
 
