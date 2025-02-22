@@ -20,9 +20,10 @@ def make_prediction(stock_data):
         print("Error: 'Close' data not found in fetched data.")
         return
 
+    # Prepare data for the model
     stock_data['Date'] = stock_data['Date'].map(datetime.toordinal)  # Convert dates
-    X = stock_data['Date'].values.reshape(-1, 1)
-    Y = stock_data['Close'].values
+    X = stock_data['Date'].values.reshape(-1, 1)  # Dates as features
+    Y = stock_data['Close'].values  # Close prices as targets
 
     model = LinearRegression()
     model.fit(X, Y)
@@ -32,11 +33,9 @@ def make_prediction(stock_data):
     predicted_price = model.predict([[future_date]])[0]
 
     current_price = stock_data['Close'].iloc[-1]
-    potential_gain = ((predicted_price - current_price) / current_price) * 100  # Percentage gain
 
     print(f"Current Price: {current_price:.2f}")
     print(f"Predicted Price in 30 days: {predicted_price:.2f}")
-    print(f"Potential Gain (%): {potential_gain:.2f}")
     print("Recommendation: Buy if price <= {:.2f}".format(predicted_price))
 
 if __name__ == "__main__":
