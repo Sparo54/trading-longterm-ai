@@ -1,48 +1,45 @@
 import yfinance as yf
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from sklearn.linear_model import LinearRegression
+import numpy as np
 
-def get_stock_data(ticker):
-    """Fetch stock data from Yahoo Finance."""
-    try:
-        stock = yf.download(ticker, period="1y", auto_adjust=True)
-        stock.reset_index(inplace=True)  # Reset index to make 'Date' a column
-        print(stock.columns)  # For debugging to check available columns
-        return stock
-    except Exception as e:
-        print(f"Error fetching stock data: {e}")
-        return None
+def get_stock_data(tickers):
+    """Fetch historical data for multiple stocks."""
+    data = {}
+    for ticker in tickers:
+        stock = yf.download(ticker, period="5y", auto_adjust=True)
+        stock.reset_index(inplace=True)
+        data[ticker] = stock
+    return data
 
-def make_prediction(stock_data):
-    """Make a stock price prediction using linear regression."""
-    if 'Close' not in stock_data.columns:
-        print("Error: 'Close' data not found in fetched data.")
-        return
+def evaluate_stocks(data):
+    """Evaluate stocks based on price performance and affordability."""
+    stock_scores = {}
+    for ticker, stock in data.items():
+        stock['Returns'] = stock['Close'].pct_change()
+        avg_return = stock['Returns'].mean() * 252  # Annualized return
+        latest_price = stock['Close'].iloc[-1]
+        
+        # Strategy: Good annual return with an affordable price
+        score = avg_return / latest_price  # Higher score means better value
 
-    # Prepare data for the model
-    stock_data['Date'] = stock_data['Date'].map(datetime.toordinal)  # Convert dates
-    X = stock_data['Date'].values.reshape(-1, 1)  # Dates as features
-    Y = stock_data['Close'].values  # Close prices as targets
+        stock_scores[ticker] = score
 
-    model = LinearRegression()
-    model.fit(X, Y)
-
-    # Predicting the price 30 days from now
-    future_date = datetime.toordinal(datetime.now() + timedelta(days=30))
-    predicted_price = model.predict([[future_date]])[0]
-
-    current_price = stock_data['Close'].iloc[-1]
-
-    print(f"Current Price: {current_price:.2f}")
-    print(f"Predicted Price in 30 days: {predicted_price:.2f}")
-    print("Recommendation: Buy if price <= {:.2f}".format(predicted_price))
+    # Sort stocks by score in descending order
+    sorted_stocks = sorted(stock_scores.items(), key=lambda x: x[1], reverse=True)
+    return sorted_stocks
 
 if __name__ == "__main__":
-    ticker_symbol = input("Enter the stock symbol (e.g., AAPL, GOOGL): ")
-    stock_data = get_stock_data(ticker_symbol)
+    # Define a list of stock tickers to analyze
+    tickers = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "FB", "NFLX", "NVDA", "INTC", "CSCO"]
     
-    if stock_data is not None:
-        make_prediction(stock_data)
-    else:
-        print("No data available for the specified stock.")
+    # Get stock data
+    stock_data = get_stock_data(tickers)
+    
+    # Evaluate stocks and get recommendations
+    recommendations = evaluate_stocks(stock_data)
+    
+    print("Top Stock Recommendations (Ticker: Score):")
+    for ticker, score in recommendations:
+        print(f"{ticker}: {score:.4f}")
