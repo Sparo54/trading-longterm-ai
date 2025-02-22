@@ -1,78 +1,73 @@
 import yfinance as yf
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+import tkinter as tk
+from tkinter import messagebox
 from datetime import datetime, timedelta
 
-# Download stock data using yfinance
-def get_stock_data(ticker, start, end):
-    stock = yf.Ticker(ticker)
-    stock_data = stock.history(start=start, end=end)
-    return stock_data
+class StockTraderApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("Automated AI Long-term Stock Trading Tool")
 
-# Prepare the data for the model
-def prepare_data(data):
-    data['Date'] = data.index
-    data['Date'] = data['Date'].map(lambda x: x.toordinal())  # Convert dates to numeric values
+        self.label = tk.Label(master, text="Select a Stock:")
+        self.label.pack()
 
-    # We will predict the 'Close' price for the next day
-    X = data[['Date']]  # Use the Date as the feature (independent variable)
-    y = data['Close']  # Close price as the target variable (dependent variable)
-    
-    return X, y
+        self.stock_list = ["AAPL", "GOOGL", "AMZN"]  # Add more stocks as needed
+        self.selected_stock = tk.StringVar(value=self.stock_list[0])
+        self.stock_menu = tk.OptionMenu(master, self.selected_stock, *self.stock_list)
+        self.stock_menu.pack()
 
-# Train the Linear Regression model
-def train_model(X, y):
-    model = LinearRegression()
-    model.fit(X, y)
-    return model
+        self.investment_label = tk.Label(master, text="Investment Amount:")
+        self.investment_label.pack()
+        self.investment_entry = tk.Entry(master)
+        self.investment_entry.pack()
 
-# Make prediction for the next day
-def predict_next_day_price(model, latest_date):
-    next_day = latest_date + timedelta(days=1)
-    next_day_ordinal = next_day.toordinal()
-    predicted_price = model.predict([[next_day_ordinal]])
-    return predicted_price[0]
+        self.risk_label = tk.Label(master, text="Risk Level (Low, Medium, High):")
+        self.risk_label.pack()
+        self.risk_entry = tk.Entry(master)
+        self.risk_entry.pack()
 
-# Plot the stock data and prediction
-def plot_data(data, predicted_price, ticker):
-    plt.figure(figsize=(10, 6))
-    plt.plot(data['Date'], data['Close'], label='Historical Prices', color='blue')
-    plt.scatter([data['Date'].iloc[-1] + 1], [predicted_price], color='red', label='Predicted Next Day Price')
-    plt.title(f'{ticker} Stock Price Prediction')
-    plt.xlabel('Date')
-    plt.ylabel('Stock Price (USD)')
-    plt.legend()
-    plt.show()
+        self.submit_button = tk.Button(master, text="Analyze", command=self.analyze_stock)
+        self.submit_button.pack()
 
-# Main function to get input, train model and predict stock price
-def stock_predictor(ticker):
-    # Define the time range for data (last 2 years)
-    end_date = datetime.today().strftime('%Y-%m-%d')
-    start_date = (datetime.today() - timedelta(days=730)).strftime('%Y-%m-%d')  # 2 years of data
+    def analyze_stock(self):
+        stock_symbol = self.selected_stock.get()
+        investment = float(self.investment_entry.get())
+        risk_level = self.risk_entry.get()
 
-    # Get stock data
-    stock_data = get_stock_data(ticker, start_date, end_date)
+        stock_data = yf.Ticker(stock_symbol)
+        historical_data = stock_data.history(period="1y")
 
-    # Prepare the data for training
-    X, y = prepare_data(stock_data)
+        # Perform preliminary analysis (This would be replaced with more complex AI analysis)
+        # Here we only estimate based on recent price trends for the sake of example
 
-    # Train the model
-    model = train_model(X, y)
+        self.make_prediction(historical_data)
 
-    # Get prediction for the next day
-    latest_date = stock_data.index[-1]
-    predicted_price = predict_next_day_price(model, latest_date)
+        messagebox.showinfo("Analysis Completed", "The analysis has been completed. Check console for results.")
 
-    # Print prediction result
-    print(f"📈 Stock: {ticker}")
-    print(f"🔹 Predicted Next Day Price: ${predicted_price:.2f}")
-    
-    # Plot the stock data and predicted price
-    plot_data(stock_data, predicted_price, ticker)
+    def make_prediction(self, historical_data):
+        # Simple analysis: Predicting the next month's price based on linear regression
+        historical_data['Date'] = historical_data.index.map(datetime.toordinal)  # Convert dates
+        X = historical_data['Date'].values.reshape(-1, 1)
+        Y = historical_data['Close'].values
 
-# User input for the stock ticker
-if __name__ == "__main__":
-    ticker = input("Enter the stock ticker (e.g., AAPL for Apple): ").upper()
-    stock_predictor(ticker)
+        model = LinearRegression()
+        model.fit(X, Y)
+
+        # Predicting the price 30 days from now
+        future_date = datetime.toordinal(datetime.now() + timedelta(days=30))
+        predicted_price = model.predict([[future_date]])[0]
+
+        print(f"Current Price: {historical_data['Close'][-1]}")
+        print(f"Predicted Price in 30 days: {predicted_price}")
+        print(f"Potential Gain: {(predicted_price - historical_data['Close'][-1]) * (int(self.investment_entry.get()) / historical_data['Close'][-1])}")
+        print("P/E Ratio: N/A (Requires earnings data)")
+        print("Market Sentiment Score: N/A (Requires sentiment analysis)")
+        print(f"Recommendation: Buy if price <= {predicted_price}")
+        print("Summary: Based on recent trends and a simple linear regression model.")
+
+root = tk.Tk()
+app = StockTraderApp(root)
+root.mainloop()
