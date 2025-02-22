@@ -28,7 +28,7 @@ def get_stock_data(ticker, start, end):
         raise ValueError(f"Neither 'Adj Close' nor 'Close' found in the data for {ticker}")
     
     return stock.dropna()
-
+    
 # Fundamental Analysis (P/E Ratio, Earnings Growth)
 def get_fundamentals(ticker):
     url = f"https://finance.yahoo.com/quote/{ticker}/key-statistics"
