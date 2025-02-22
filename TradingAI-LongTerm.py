@@ -1,112 +1,5 @@
-import yfinance as yf
-import pandas as pd
-import numpy as np
-import requests
-import matplotlib.pyplot as plt
-from bs4 import BeautifulSoup
-from newspaper import Article
-from sklearn.ensemble import RandomForestRegressor
-from datetime import datetime, timedelta
-
-# Import TradingView stock directory
-def get_tradingview_stocks():
-    return [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "AMD", "BA"
-    ]  # Example stock list
-
-# Fetch stock data
-def get_stock_data(ticker, start, end):
-    stock = yf.download(ticker, start=start, end=end)
-    # Check available columns and fall back to 'Close' if 'Adj Close' is missing
-    if 'Adj Close' in stock.columns:
-        stock['Returns'] = stock['Adj Close'].pct_change()
-        price_column = 'Adj Close'
-    elif 'Close' in stock.columns:
-        stock['Returns'] = stock['Close'].pct_change()
-        price_column = 'Close'
-    else:
-        raise ValueError(f"Neither 'Adj Close' nor 'Close' found in the data for {ticker}")
-    
-    return stock.dropna()
-    
-# Fundamental Analysis (P/E Ratio, Earnings Growth)
-def get_fundamentals(ticker):
-    url = f"https://finance.yahoo.com/quote/{ticker}/key-statistics"
-    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-    soup = BeautifulSoup(response.text, "html.parser")
-    
-    pe_ratio = None
-    pe_element = soup.find(text="Trailing P/E")
-    if pe_element:
-        pe_ratio = pe_element.find_next("td").text
-    
-    return {"PE Ratio": pe_ratio}
-
-# Scrape news from multiple sources for sentiment analysis
-def scrape_news(ticker):
-    sources = [
-        f"https://finance.yahoo.com/quote/{ticker}/news",
-        f"https://www.marketwatch.com/investing/stock/{ticker}",
-        f"https://www.cnbc.com/quotes/{ticker}",
-        f"https://www.nasdaq.com/market-activity/stocks/{ticker}/news",
-        f"https://seekingalpha.com/symbol/{ticker}/news"
-    ]
-
-    sentiment_score = 0
-    article_count = 0
-
-    for url in sources:
-        try:
-            article = Article(url)
-            article.download()
-            article.parse()
-            article.nlp()
-            
-            text = article.summary.lower()
-            positive_words = ["growth", "bullish", "strong", "rally", "profit"]
-            negative_words = ["loss", "bearish", "decline", "sell-off", "crash"]
-
-            pos_count = sum(text.count(word) for word in positive_words)
-            neg_count = sum(text.count(word) for word in negative_words)
-
-            sentiment_score += (pos_count - neg_count)
-            article_count += 1
-        except:
-            continue
-
-    avg_sentiment = sentiment_score / max(article_count, 1)
-    return avg_sentiment
-
-# Feature engineering
-def create_features(data):
-    data['SMA_50'] = data['Close'].rolling(window=50).mean()  # Use 'Close' directly
-    data['SMA_200'] = data['Close'].rolling(window=200).mean()  # Use 'Close' directly
-    data['Volatility'] = data['Returns'].rolling(window=30).std()
-    data.dropna(inplace=True)
-    return data
-
-# Train model to predict stock prices
-def train_model(data):
-    data['Target'] = data['Close'].shift(-30)  # Predicting 30 days ahead
-    data.dropna(inplace=True)
-    
-    features = ['SMA_50', 'SMA_200', 'Volatility', 'Volume']
-    X = data[features]
-    y = data['Target']
-    
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X, y)
-    
-    return model, data
-
-# Make predictions
-def predict_stock(model, latest_data):
-    return model.predict([latest_data])
-
 # AI Trading System for Stock Analysis
-def analyze_stock(t
-
-icker, investment_amount, risk_level):
+def analyze_stock(ticker, investment_amount, risk_level):
     start = (datetime.today() - timedelta(days=365 * 5)).strftime('%Y-%m-%d')
     end = datetime.today().strftime('%Y-%m-%d')
 
@@ -149,7 +42,9 @@ icker, investment_amount, risk_level):
     print(f"🔹 Current Price: ${current_price:.2f}")
     print(f"🔹 Predicted Price (30 days): ${predicted_price:.2f}")
     print(f"🔹 Potential Gain: {potential_gain * 100:.2f}%")
-    print(f"🔹 P/E Ratio: {pe_ratio}")
+   
+
+ print(f"🔹 P/E Ratio: {pe_ratio}")
     print(f"🔹 Market Sentiment Score: {sentiment_score:.2f}")
     print(f"🔹 Recommendation: {recommendation}")
     print(f"🔹 Suggested Shares to Buy: {shares_to_buy}")
