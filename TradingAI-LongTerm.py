@@ -1,10 +1,9 @@
 import yfinance as yf
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
 import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime, timedelta
+from sklearn.linear_model import LinearRegression
 
 class StockTraderApp:
     def __init__(self, master):
@@ -33,7 +32,9 @@ class StockTraderApp:
         self.submit_button.pack()
 
     def analyze_stock(self):
-        stock_symbol = self.selected_stock.get()
+       
+
+ stock_symbol = self.selected_stock.get()
         investment_amount = float(self.investment_entry.get())
         risk_level = self.risk_entry.get().lower()
 
@@ -45,12 +46,21 @@ class StockTraderApp:
         self.make_prediction(stock_data, investment_amount, risk_level)
 
     def get_stock_data(self, ticker):
-        stock = yf.download(ticker, period="1y", auto_adjust=True)
-        print(stock.columns)  # For debugging purposes
-        return stock.reset_index()  # Reset index to get 'Date' as a column
+        try:
+            stock = yf.download(ticker, period="1y", auto_adjust=True)
+            stock.reset_index(inplace=True)  # Reset index to make 'Date' a column
+            print(stock.columns)  # Print the columns for debugging
+            return stock
+        except Exception as e:
+            print(f"Error fetching stock data: {e}")
+            return None
 
     def make_prediction(self, stock_data, investment_amount, risk_level):
-        # Prepare data for model
+        if 'Close' not in stock_data.columns:
+            messagebox.showerror("Error", "'Close' data not found. Check the data source.")
+            return
+
+        # Prepare data for the model
         stock_data['Date'] = stock_data['Date'].map(datetime.toordinal)  # Convert dates
         X = stock_data['Date'].values.reshape(-1, 1)
         Y = stock_data['Close'].values
@@ -66,7 +76,9 @@ class StockTraderApp:
         potential_gain = ((predicted_price - current_price) / current_price) * investment_amount
 
         print(f"Current Price: {current_price:.2f}")
-        print(f"Predicted Price in 30 days: {predicted_price:.2f}")
+        print(f"Predicted Price in 30 days: {predicted
+
+_price:.2f}")
         print(f"Potential Gain: {potential_gain:.2f}")
         print("Recommendation: Buy if price <= {:.2f}".format(predicted_price))
         print("Summary: Based on recent trends and a simple linear regression model.")
@@ -79,5 +91,7 @@ class StockTraderApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = StockTraderApp(root)
+    app
+
+ = StockTraderApp(root)
     root.mainloop()
