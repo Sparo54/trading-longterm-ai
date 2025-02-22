@@ -34,24 +34,26 @@ class StockTraderApp:
 
     def analyze_stock(self):
         stock_symbol = self.selected_stock.get()
-        investment = float(self.investment_entry.get())
-        risk_level = self.risk_entry.get()
+        investment_amount = float(self.investment_entry.get())
+        risk_level = self.risk_entry.get().lower()
 
-        stock_data = yf.Ticker(stock_symbol)
-        historical_data = stock_data.history(period="1y")
+        stock_data = self.get_stock_data(stock_symbol)
+        if stock_data is None:
+            messagebox.showerror("Error", "Could not fetch data. Please check the stock symbol.")
+            return
 
-        # Perform preliminary analysis (This would be replaced with more complex AI analysis)
-        # Here we only estimate based on recent price trends for the sake of example
+        self.make_prediction(stock_data, investment_amount, risk_level)
 
-        self.make_prediction(historical_data)
+    def get_stock_data(self, ticker):
+        stock = yf.download(ticker, period="1y", auto_adjust=True)
+        print(stock.columns)  # For debugging purposes
+        return stock.reset_index()  # Reset index to get 'Date' as a column
 
-        messagebox.showinfo("Analysis Completed", "The analysis has been completed. Check console for results.")
-
-    def make_prediction(self, historical_data):
-        # Simple analysis: Predicting the next month's price based on linear regression
-        historical_data['Date'] = historical_data.index.map(datetime.toordinal)  # Convert dates
-        X = historical_data['Date'].values.reshape(-1, 1)
-        Y = historical_data['Close'].values
+    def make_prediction(self, stock_data, investment_amount, risk_level):
+        # Prepare data for model
+        stock_data['Date'] = stock_data['Date'].map(datetime.toordinal)  # Convert dates
+        X = stock_data['Date'].values.reshape(-1, 1)
+        Y = stock_data['Close'].values
 
         model = LinearRegression()
         model.fit(X, Y)
@@ -60,14 +62,22 @@ class StockTraderApp:
         future_date = datetime.toordinal(datetime.now() + timedelta(days=30))
         predicted_price = model.predict([[future_date]])[0]
 
-        print(f"Current Price: {historical_data['Close'][-1]}")
-        print(f"Predicted Price in 30 days: {predicted_price}")
-        print(f"Potential Gain: {(predicted_price - historical_data['Close'][-1]) * (int(self.investment_entry.get()) / historical_data['Close'][-1])}")
-        print("P/E Ratio: N/A (Requires earnings data)")
-        print("Market Sentiment Score: N/A (Requires sentiment analysis)")
-        print(f"Recommendation: Buy if price <= {predicted_price}")
+        current_price = stock_data['Close'].iloc[-1]
+        potential_gain = ((predicted_price - current_price) / current_price) * investment_amount
+
+        print(f"Current Price: {current_price:.2f}")
+        print(f"Predicted Price in 30 days: {predicted_price:.2f}")
+        print(f"Potential Gain: {potential_gain:.2f}")
+        print("Recommendation: Buy if price <= {:.2f}".format(predicted_price))
         print("Summary: Based on recent trends and a simple linear regression model.")
 
-root = tk.Tk()
-app = StockTraderApp(root)
-root.mainloop()
+        messagebox.showinfo("Analysis Results", f"Current Price: {current_price:.2f}\n"
+                                                  f"Predicted Price in 30 days: {predicted_price:.2f}\n"
+                                                  f"Potential Gain: {potential_gain:.2f}\n"
+                                                  "Recommendations:\n"
+                                                  f"Buy if price <= {predicted_price:.2f}")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = StockTraderApp(root)
+    root.mainloop()
